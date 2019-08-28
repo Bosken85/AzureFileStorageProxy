@@ -16,7 +16,8 @@ namespace FileProvider.Azure
     public interface IStorageClient
     {
         Task<IEnumerable<AzureDocument>> GetDirectory(string container, string directory);
-        Task<Dictionary<string, string>> Upload(string container, string directory, ICollection<IFileInfo> files);
+        Task<AzureFile> GetFile(string container, string path, MemoryStream stream);
+        Task<IEnumerable<AzureDocument>> Upload(string container, string directory, ICollection<IFileInfo> files);
         Task<Dictionary<string, bool>> Delete(string container, string directory, ICollection<string> files);
     }
 
@@ -24,6 +25,12 @@ namespace FileProvider.Azure
     {
         public string Name { get; set; }
         public string Url { get; set; }
+    }
+
+    public class AzureFile
+    {
+        public string MimeType { get; set; }
+        public byte[] Data { get; set; }
     }
 
     public class StorageClient : IStorageClient
@@ -85,14 +92,29 @@ namespace FileProvider.Azure
             return files;
         }
 
-        public async Task<Dictionary<string, string>> Upload(string container, string directory, ICollection<IFileInfo> files)
+        public async Task<AzureFile> GetFile(string container, string path, MemoryStream stream)
+        {
+            if (string.IsNullOrWhiteSpace(path)) throw new ArgumentNullException(nameof(path));
+            if (!Path.HasExtension(path)) throw new ArgumentException($"{nameof(path)} cannot contain no extension and needs to be a file path");
+
+            CloudBlobContainer cloudBlobContainer = await GetBlobContainer(container);
+            var file = cloudBlobContainer.GetBlobReference(path);
+            await file.DownloadToStreamAsync(stream);
+            return new AzureFile
+            {
+                Data = stream.ToArray(),
+                MimeType = GetMimeType(file.Name)
+            };
+        }
+
+        public async Task<IEnumerable<AzureDocument>> Upload(string container, string directory, ICollection<IFileInfo> files)
         {
             if (string.IsNullOrWhiteSpace(directory)) throw new ArgumentNullException(nameof(directory));
             if (Path.HasExtension(directory)) throw new ArgumentException($"{nameof(directory)} can't contain an extension and needs to be a directory path");
 
             CloudBlobContainer cloudBlobContainer = await GetBlobContainer(container);
 
-            var result = new Dictionary<string, string>();
+            var result = new List<AzureDocument>();
             foreach (var file in files)
             {
                 var fileStorageLocation = Path.Combine(directory, file.Name);
@@ -101,7 +123,11 @@ namespace FileProvider.Azure
                 using (var fileStream = file.CreateReadStream())
                 {
                     await cloudBlockBlob.UploadFromStreamAsync(fileStream);
-                    result.Add(file.Name, fileStorageLocation);
+                    result.Add(new AzureDocument
+                    {
+                        Name = !string.IsNullOrEmpty(cloudBlockBlob.Parent.Prefix) ? cloudBlockBlob.Name.Replace(cloudBlockBlob.Parent.Prefix, "") : cloudBlockBlob.Name,
+                        Url = cloudBlockBlob.Name
+                    });
                 }
             }
             return result;

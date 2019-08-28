@@ -53,12 +53,12 @@ namespace FileProvider
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
 
             services.AddSingleton<IStorageClient, StorageClient>();
-            services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
-            services.AddScoped<IUrlHelper>(factory =>
-            {
-                var actionContext = factory.GetService<IActionContextAccessor>().ActionContext;
-                return new UrlHelper(actionContext);
-            });
+            //services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
+            //services.AddScoped<IUrlHelper>(factory =>
+            //{
+            //    var actionContext = factory.GetService<IActionContextAccessor>().ActionContext;
+            //    return new UrlHelper(actionContext);
+            //});
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
