@@ -5,11 +5,13 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Diflexmo.AspNetCore.AzureBlobFileProvider;
+using FileProvider.Azure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Configuration;
@@ -44,9 +46,19 @@ namespace FileProvider
             //var azureBlobFileProvider = new AzureBlobFileProvider(blobOptions);
             //services.AddSingleton<IFileProvider>(azureBlobFileProvider);
 
-            services.Configure<RouteOptions>(options => options.ConstraintMap.Add("allowedgods", typeof(OnlyGodsConstraint)));
+            services.Configure<AzureBlobOptions>(Configuration.GetSection("AzureBlobOptions"));
+            services.Configure<RouteOptions>(options => options.ConstraintMap.Add("file", typeof(FileConstraint)));
+            services.Configure<RouteOptions>(options => options.ConstraintMap.Add("directory", typeof(DirectoryConstraint)));
 
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+
+            services.AddSingleton<IStorageClient, StorageClient>();
+            services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
+            services.AddScoped<IUrlHelper>(factory =>
+            {
+                var actionContext = factory.GetService<IActionContextAccessor>().ActionContext;
+                return new UrlHelper(actionContext);
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -71,15 +83,6 @@ namespace FileProvider
             //    RequestPath = "/files",
             //    Formatter = new JsonDirectoryFormatter()
             //});
-        }
-    }
-
-    public class OnlyGodsConstraint : IRouteConstraint
-    {
-        public bool Match(HttpContext httpContext, IRouter route, string routeKey, RouteValueDictionary values, RouteDirection routeDirection)
-        {
-            var value = values[routeKey] as string;
-            return Path.HasExtension(value);
         }
     }
 
